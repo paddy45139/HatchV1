@@ -7,7 +7,10 @@
     canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
     transform={scale,x:(r.width-512*scale)/2,y:(r.height-512*scale)/2};
   }
-  const input=HatchInput(canvas,sim,view),draw=HatchRender(canvas,sim,view);
+  const audio=HatchAudio(),input=HatchInput(canvas,sim,view,audio),draw=HatchRender(canvas,sim,view);
+  document.addEventListener('pointerdown',audio.gesture,{once:true,capture:true});
+  document.addEventListener('keydown',audio.gesture,{once:true,capture:true});
+  document.querySelector('#sound').addEventListener('click',e=>{const enabled=audio.toggle();e.currentTarget.setAttribute('aria-pressed',String(enabled));e.currentTarget.textContent=enabled?'Sound on':'Sound off';});
   let resume='LIVE';
   document.addEventListener('visibilitychange',()=>{
     if(document.hidden) {input.cancel();resume=sim.state;sim.state='PAUSED';}
@@ -21,7 +24,7 @@
       accumulator+=Math.min((now-last)/1000,HatchSim.DT*8);
       let steps=0;while(accumulator>=HatchSim.DT && steps++<8){sim.step();accumulator-=HatchSim.DT;}
     }
-    last=now;draw();requestAnimationFrame(frame);
+    last=now;audio.update(sim.state==='PAUSED'?null:sim.grab);draw();requestAnimationFrame(frame);
   }
   window.__hatch={sim,view,draw,input,setManual(value){manual=value;last=null;accumulator=0;},advance(seconds){for(let i=0;i<Math.round(seconds/HatchSim.DT);i++)sim.step();draw();}};
   requestAnimationFrame(frame);

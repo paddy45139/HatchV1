@@ -1,10 +1,12 @@
-window.HatchInput = function(canvas, sim, view) {
+window.HatchInput = function(canvas, sim, view, audio) {
   let active=null;
   const point=e=>{const r=canvas.getBoundingClientRect(),v=view();return {x:(e.clientX-r.left-v.x)/v.scale,y:(e.clientY-r.top-v.y)/v.scale};};
   function finish(cancel) {
     if(active===null) return;
     const id=active.id; active=null;
+    const meaningful=sim.grab?.moved;
     if(cancel) sim.cancel(); else sim.release();
+    if(!cancel && meaningful && sim.state==='SETTLING') audio?.release(); else audio?.update(null);
     if(canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
   }
   canvas.addEventListener('pointerdown',e=>{
@@ -12,7 +14,7 @@ window.HatchInput = function(canvas, sim, view) {
     const p=point(e),v=view(),hit=HatchSim.nearest(p,sim.nodes),bead=sim.nodes[0];
     if(hit.d*v.scale>24 && Math.hypot(p.x-bead.x,p.y-bead.y)*v.scale>22) return;
     active={id:e.pointerId,start:p,offset:{x:hit.x-p.x,y:hit.y-p.y}};
-    sim.beginGrab(hit,v.scale); canvas.setPointerCapture(e.pointerId); e.preventDefault();
+    sim.beginGrab(hit,v.scale); audio?.engage(); canvas.setPointerCapture(e.pointerId); e.preventDefault();
   });
   canvas.addEventListener('pointermove',e=>{
     if(!active || active.id!==e.pointerId || !sim.grab) return;

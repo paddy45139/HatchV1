@@ -19,8 +19,29 @@ Restoration uses best-fit rigid alignment, so the new silhouette can translate
 and rotate freely. Invalid releases restore the pre-grab snapshot and increment
 `rejectedCommits`. Reset, Escape and cancellation include all rest geometry.
 
-Pending checkpoint 3: contact highlights, shadow, audio and its accessible toggle, performance
-measurements, five-minute/100-pull verification and real-device testing.
-Unfamiliar-player product validation is pending; no participants have been tested.
+## Checkpoint 3 — polish and verification
+
+All three implementation checkpoints are complete. Local pressure highlights use
+actual reciprocal boundary impulses, with 30 ms rise / 140 ms decay. Grab shadow
+and bead transitions respect reduced motion. The straight polygon remains the
+collision and rendered contour. Sound initializes after a gesture: a quiet noise
+tick, speed-dependent friction and a short falling release tone. The Sound button
+mutes everything; unavailable or failing Web Audio does not block interaction.
+
+Chromium VM verification: five simulated minutes (36,000 steps) and 100 small
+mouse-driven pulls kept 24 inhabitants finite and contained, with zero recoveries
+and zero rejected commits. Snapshot reset/cancellation, persistent silhouettes,
+invalid-contour rejection and reciprocal contact checks passed. Mouse capture,
+outside release, emulated touch, resize, visibility pause/resume, mute, and missing
+or throwing AudioContext were exercised. Controlled contact momentum error was
+6.82e-12; restoration net force and torque were below 1e-8 and 1e-7 respectively.
+
+Over approximately five real seconds, 319 frame intervals measured p50 16.7 ms,
+p95 16.8 ms. For 21 pointer moves, event-handler-to-next-render-frame callback
+latency measured p50 0.5 ms / p95 0.9 ms. These are automated VM measurements,
+not input-to-display photon latency or evidence of performance on real devices.
+A held-grab screenshot was captured with state GRABBING before and after capture.
+Audio has not been subjectively auditioned. Real-device testing and unfamiliar-
+player product validation remain pending; no participants have been tested.
 `window.__hatch` exposes simulation snapshots, manual stepping and view helpers
 for repeatable browser checks.

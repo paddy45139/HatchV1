@@ -39,10 +39,11 @@
       this.preferred=this.nodes.map(p=>({x:p.x-256,y:p.y-256}));
       this.lengths=this.nodes.map((p,i)=>Math.hypot(p.x-this.nodes[(i+1)%N].x,p.y-this.nodes[(i+1)%N].y));
       this.bending=this.restBending(this.preferred);
+      this.pressure=Array(N).fill(0);
       this.initialArea=area(this.nodes);
       this.inhabitants=Array.from({length:N},(_,i)=>{const a=i*TAU/N+.02*this.random(), r=i%3===0?161:55+75*this.random(), h=a+(this.random()-.5)*.8; return {x:256+r*Math.cos(a),y:256+r*Math.sin(a),vx:35*Math.cos(h),vy:35*Math.sin(h),heading:h};});
     }
-    snapshot() { return copy({nodes:this.nodes,preferred:this.preferred,lengths:this.lengths,bending:this.bending,inhabitants:this.inhabitants,rng:this.rng,time:this.time,steps:this.steps,recoveries:this.recoveries,rejectedCommits:this.rejectedCommits,contactImpulse:this.contactImpulse,state:this.state,settle:this.settle,initialArea:this.initialArea}); }
+    snapshot() { return copy({nodes:this.nodes,preferred:this.preferred,lengths:this.lengths,bending:this.bending,pressure:this.pressure,inhabitants:this.inhabitants,rng:this.rng,time:this.time,steps:this.steps,recoveries:this.recoveries,rejectedCommits:this.rejectedCommits,contactImpulse:this.contactImpulse,state:this.state,settle:this.settle,initialArea:this.initialArea}); }
     restore(snapshot) { Object.assign(this,copy(snapshot)); this.grab=null; this.lastValid=this.snapshot(); }
     reset() { this.restore(this.baseline); }
     beginGrab(hit,scale) {
@@ -76,10 +77,19 @@
       const {center,angle}=this.alignment(),c=Math.cos(angle),s=Math.sin(angle);
       return this.nodes.map((p,i)=>{const r=this.preferred[i];return {x:4*(center.x+r.x*c-r.y*s-p.x),y:4*(center.y+r.x*s+r.y*c-p.y)};});
     }
+    boundaryContact(p,dt) {
+      const e=nearest(p,this.nodes),contained=inside(p,this.nodes),depth=contained?6-e.d:6+e.d;
+      if(depth<=0) return;
+      const a=this.nodes[e.i],b=this.nodes[(e.i+1)%N],wa=1-e.t,wb=e.t,den=1+.5*(wa*wa+wb*wb),c=depth/den;
+      p.x+=e.nx*c;p.y+=e.ny*c;a.x-=e.nx*c*.5*wa;a.y-=e.ny*c*.5*wa;b.x-=e.nx*c*.5*wb;b.y-=e.ny*c*.5*wb;
+      const impulse=c/dt;
+      this.contactImpulse+=impulse;this.pressure[e.i]+=impulse*wa;this.pressure[(e.i+1)%N]+=impulse*wb;
+    }
     step(dt=DT) {
       if(this.state==='PAUSED') return;
       const previous=this.snapshot(), all=[...this.nodes,...this.inhabitants], old=all.map(p=>({x:p.x,y:p.y}));
       this.contactImpulse=0;
+      this.pressure.fill(0);
       for(const p of this.inhabitants) {
         const edge=nearest(p,this.nodes);
         if(edge.d<14) {
@@ -96,17 +106,14 @@
         p.vx*=Math.exp(-dt*3); p.vy*=Math.exp(-dt*3);
         if(forces) {p.vx+=forces[i].x*.5*dt;p.vy+=forces[i].y*.5*dt;}
       });
-      if(this.grab) {const g=this.grab,f=1-Math.exp(-dt/.015);g.age+=dt;g.follow.x+=(g.target.x-g.follow.x)*f;g.follow.y+=(g.target.y-g.follow.y)*f;}
+      if(this.grab) {const g=this.grab,f=1-Math.exp(-dt/.015),dx=(g.target.x-g.follow.x)*f,dy=(g.target.y-g.follow.y)*f;g.age+=dt;g.follow.x+=dx;g.follow.y+=dy;g.deformationSpeed=Math.hypot(dx,dy)/dt;}
       all.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;});
       for(let iteration=0;iteration<4;iteration++) {
         this.nodes.forEach((p,i)=>{const q=this.nodes[(i+1)%N],dx=q.x-p.x,dy=q.y-p.y,d=Math.hypot(dx,dy)||1,c=(d-this.lengths[i])/d*.45;p.x+=dx*c;p.y+=dy*c;q.x-=dx*c;q.y-=dy*c;});
         const bend=this.nodes.map((p,i)=>{const a=this.nodes[(i+N-1)%N],b=this.nodes[(i+1)%N],r=this.bending[i];return {x:((a.x+b.x)/2-p.x-r.x*Math.cos(angle)+r.y*Math.sin(angle))*.008,y:((a.y+b.y)/2-p.y-r.x*Math.sin(angle)-r.y*Math.cos(angle))*.008};});
         this.nodes.forEach((p,i)=>{p.x+=bend[i].x;p.y+=bend[i].y;});
         for(let i=0;i<N;i++) for(let j=i+1;j<N;j++) {const a=this.inhabitants[i],b=this.inhabitants[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<12){const nx=d?dx/d:1,ny=d?dy/d:0,c=(12-d)/2;a.x-=nx*c;a.y-=ny*c;b.x+=nx*c;b.y+=ny*c;this.contactImpulse+=c/dt;}}
-        for(const p of this.inhabitants) {
-          const e=nearest(p,this.nodes), contained=inside(p,this.nodes), depth=contained?6-e.d:6+e.d;
-          if(depth>0) {const a=this.nodes[e.i],b=this.nodes[(e.i+1)%N],wa=1-e.t,wb=e.t,den=1+.5*(wa*wa+wb*wb),c=depth/den;p.x+=e.nx*c;p.y+=e.ny*c;a.x-=e.nx*c*.5*wa;a.y-=e.ny*c*.5*wa;b.x-=e.nx*c*.5*wb;b.y-=e.ny*c*.5*wb;this.contactImpulse+=c/dt;}
-        }
+        for(const p of this.inhabitants) this.boundaryContact(p,dt);
         if(this.grab) {
           const g=this.grab,dx=g.follow.x-g.hit.x,dy=g.follow.y-g.hit.y;
           for(let k=-2;k<=2;k++){const i=(g.index+k+N)%N,p=this.nodes[i],w=[1,.5,.15][Math.abs(k)];p.x+=(g.anchor[i].x+dx-p.x)*w*.65;p.y+=(g.anchor[i].y+dy-p.y)*w*.65;}
